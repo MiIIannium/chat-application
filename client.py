@@ -2,7 +2,7 @@ import socket
 
 # Socket variables
 client_HOST = "127.0.0.1"
-client_PORT = 30002
+client_PORT = 30007
 client_ADDRESS = ((client_HOST, client_PORT))
 
 server_HOST = "127.0.0.1"
@@ -15,8 +15,12 @@ client_SOCKET.bind(client_ADDRESS)
 
 # Send a connection request
 client_SOCKET.connect(server_ADDRESS)
-print(client_SOCKET.recv(1024))
-# Listen on a unique port for the request
+
+while True:
+    message = input("Message: ")
+    client_SOCKET.send(bytes(message, "UTF-8"))
+
+client_SOCKET.close()
 
 
 # Send a message
