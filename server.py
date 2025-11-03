@@ -68,7 +68,6 @@ def connection_accepting():
     except:
         print("Unknown Error?")
 
-    print("?")
     server_SOCKET.close()
 
 connection_accepting()
