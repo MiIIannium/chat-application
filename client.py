@@ -1,8 +1,9 @@
 import socket
-
+import sys
+print(sys.argv[1])
 # Socket variables
 client_HOST = "127.0.0.1"
-client_PORT = 30007
+client_PORT = int(sys.argv[1])
 client_ADDRESS = ((client_HOST, client_PORT))
 
 server_HOST = "127.0.0.1"

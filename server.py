@@ -28,7 +28,7 @@ class Client():
             if message is None:
                 print("None")
 
-            print(message)
+            print(f"{self.address}: {message}")
 
             # Broadcast
 
