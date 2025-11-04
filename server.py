@@ -4,17 +4,11 @@ import threading
 # Start making a socket listen for connections & See if they want a connection or are sending a message because we already have a connection
 
 # Socket variables
-
 server_HOST = "127.0.0.1"
 server_PORT = 30000
 server_ADDRESS = ((server_HOST, server_PORT))
 
 clients_LIST = []
-
-# Create socket
-server_SOCKET = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server_SOCKET.bind(server_ADDRESS)
-server_SOCKET.listen()
 
 # Client class
 class Client():
@@ -42,6 +36,8 @@ def Receiving_Messages(sock_object):
                 if encoded_data is None:
                     print("None")
                     break
+                elif decoded_data == "!kill":
+                    break
 
                 message = str(sock_object.address) + ": " + decoded_data
                 print(message)
@@ -49,28 +45,31 @@ def Receiving_Messages(sock_object):
                 # Broadcast
                 Broadcast(sock_object, message)
         finally:
+            sock_object.socket.shutdown(socket.SHUT_RDWR)
+            sock_object.socket.close()
             clients_LIST.remove(sock_object)
             print("Disconnected")
             
+# Create socket
+server_SOCKET = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server_SOCKET.bind(server_ADDRESS)
+server_SOCKET.listen()
 
-def connection_accepting():
-    try:
-        while True:
-            client_SOCKET, address = server_SOCKET.accept()
-            print(f"Connected to {address}")
+try:
+    while True:
+        client_SOCKET, address = server_SOCKET.accept()
+        print(f"Connected to {address}")
 
-            client_object = Client(client_SOCKET, address)
+        client_object = Client(client_SOCKET, address)
 
-            Connection_Comfirmation(client_object)  # Sends a message back to the client telling them they are successfully connected
+        Connection_Comfirmation(client_object)  # Sends a message back to the client telling them they are successfully connected
 
-            client_listening_thread = threading.Thread(target=Receiving_Messages, args=(client_object,))  # The thread that listens for messages from the client
-            client_listening_thread.start()
-    except:
-        print("Unknown Error?")
-
+        client_listening_thread = threading.Thread(target=Receiving_Messages, args=(client_object,))  # The thread that listens for messages from the client
+        client_listening_thread.start()
+except:
+    print("Error?")
+finally:
     server_SOCKET.close()
-
-connection_accepting()
 
 
 # Save the connection once you received a comfirmation of the comfirmation we send
