@@ -1,75 +1,146 @@
 import socket
 import threading
 
-# Start making a socket listen for connections & See if they want a connection or are sending a message because we already have a connection
+# Server Configuration
 
-# Socket variables
-server_HOST = "127.0.0.1"
-server_PORT = 30000
-server_ADDRESS = ((server_HOST, server_PORT))
+SERVER_HOST = "127.0.0.1"
+SERVER_PORT = 30000
+SERVER_ADDRESS = (SERVER_HOST, SERVER_PORT)
 
-clients_LIST = []
+# Track all connected clients
+connected_clients = []
 
-# Client class
-class Client():
-    def __init__(self, socket, address):
-        self.socket = socket
+
+# Client Class
+
+class Client:
+    """
+    Represents a connected client.
+    Holds the socket and address, and automatically adds itself to the client list.
+    """
+    def __init__(self, client_socket, address):
+        self.socket = client_socket
         self.address = address
-        clients_LIST.append(self)
+        connected_clients.append(self)
 
-# Send a comfirmation back
-def Connection_Comfirmation(sock_object):
-    message = "Server: Connected to " + str(server_ADDRESS)
-    sock_object.socket.send(message.encode("utf-8"))
-
-def Broadcast(sender_sock_object, message):
-    for client in clients_LIST:
-        if client != sender_sock_object:
-            client.socket.send(bytes(message, "utf-8"))
-
-def Receiving_Messages(sock_object):
+    def send(self, message: str):
+        """
+        Send a UTF-8 encoded message to this client.
+        """
         try:
-            while True:
-                encoded_data = sock_object.socket.recv(1024)
-                decoded_data = encoded_data.decode("utf-8")
-
-                if encoded_data is None:
-                    print("None")
-                    break
-                elif decoded_data == "!kill":
-                    break
-
-                message = str(sock_object.address) + ": " + decoded_data
-                print(message)
-
-                # Broadcast
-                Broadcast(sock_object, message)
-        finally:
-            sock_object.socket.shutdown(socket.SHUT_RDWR)
-            sock_object.socket.close()
-            clients_LIST.remove(sock_object)
-            print("Disconnected")
-            
-# Create socket
-server_SOCKET = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server_SOCKET.bind(server_ADDRESS)
-server_SOCKET.listen()
-
-try:
-    while True:
-        client_SOCKET, address = server_SOCKET.accept()
-        print(f"Connected to {address}")
-
-        client_object = Client(client_SOCKET, address)
-
-        Connection_Comfirmation(client_object)  # Sends a message back to the client telling them they are successfully connected
-
-        client_listening_thread = threading.Thread(target=Receiving_Messages, args=(client_object,))  # The thread that listens for messages from the client
-        client_listening_thread.start()
-except:
-    print("Error?")
-finally:
-    server_SOCKET.close()
+            self.socket.sendall(message.encode("utf-8"))
+        except Exception as e:
+            print(f"Error sending message to {self.address}: {e}")
 
 
-# Save the connection once you received a comfirmation of the comfirmation we send
+# Server Utility Functions
+
+def send_connection_confirmation(client: Client):
+    """
+    Send a confirmation message to a newly connected client.
+    """
+    confirmation = f"Server: Connected to {SERVER_ADDRESS}"
+    client.send(confirmation)
+
+
+def broadcast_message(sender: Client, message: str):
+    """
+    Send a message to all connected clients except the sender.
+    """
+    for client in connected_clients:
+        if client != sender:
+            try:
+                client.send(message)
+            except Exception as e:
+                print(f"Error broadcasting to {client.address}: {e}")
+
+
+def handle_client_messages(client: Client):
+    """
+    Continuously listen for messages from a specific client.
+    Broadcast received messages to all other connected clients.
+    """
+    try:
+        while True:
+            data = client.socket.recv(1024)
+            if not data:
+                break  # Client disconnected
+
+            message = data.decode("utf-8").strip()
+
+            # Handle special commands
+            if message == "!kill":
+                print(f"{client.address} requested disconnect.")
+                break
+
+            formatted_message = f"{client.address}: {message}"
+            print(formatted_message)
+
+            # Broadcast to all other clients
+            broadcast_message(client, formatted_message)
+
+    except Exception as e:
+        print(f"Error handling client {client.address}: {e}")
+
+    finally:
+        disconnect_client(client)
+
+
+def disconnect_client(client: Client):
+    """
+    Cleanly disconnect a client, close its socket, and remove it from the list.
+    """
+    try:
+        client.socket.shutdown(socket.SHUT_RDWR)
+    except Exception:
+        pass  # Socket may already be closed
+
+    client.socket.close()
+
+    if client in connected_clients:
+        connected_clients.remove(client)
+
+    print(f"Client {client.address} disconnected.")
+
+
+# Server Main Loop
+
+def start_server():
+    """
+    Start the TCP chat server and listen for incoming connections.
+    """
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_socket.bind(SERVER_ADDRESS)
+    server_socket.listen()
+
+    print(f"Server started on {SERVER_HOST}:{SERVER_PORT}")
+    print("Waiting for connections...")
+
+    try:
+        while True:
+            client_socket, address = server_socket.accept()
+            print(f"New connection from {address}")
+
+            client = Client(client_socket, address)
+            send_connection_confirmation(client)
+
+            # Handle messages from the client in a new thread
+            threading.Thread(
+                target=handle_client_messages,
+                args=(client,),
+                daemon=True
+            ).start()
+
+    except KeyboardInterrupt:
+        print("\nServer shutting down (KeyboardInterrupt).")
+    except Exception as e:
+        print(f"Server error: {e}")
+    finally:
+        server_socket.close()
+        print("Server socket closed.")
+
+
+# Entry Point
+
+if __name__ == "__main__":
+    start_server()
